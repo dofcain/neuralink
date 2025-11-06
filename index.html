@@ -83,8 +83,8 @@
     let movementModel, thoughtModel;
 
     async function loadModels() {
-      movementModel = await tf.loadLayersModel("models/movement_model/model.json");
-      thoughtModel = await tf.loadLayersModel("models/eye_model/model.json");
+     movementModel = await tf.loadLayersModel("./movement_model_tfjs/model.json");
+thoughtModel = await tf.loadLayersModel("./thought_model_tfjs/model.json");
       console.log("✅ Models loaded");
     }
 
