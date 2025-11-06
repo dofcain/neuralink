@@ -1,128 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Neuralink-Lite Brainwave Decoder</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neuralink-Lite Brainwave Decoder</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f8faff;
-      text-align: center;
-      padding: 40px;
-    }
-    h1 { font-size: 36px; font-weight: bold; }
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f8faff;
+    text-align: center;
+    padding: 40px;
+  }
 
-    .wave-box {
-      width: 90%;
-      margin: 30px auto;
-      height: 200px;
-      border-radius: 20px;
-      background: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0px 4px 18px rgba(0,0,0,0.12);
-      overflow: hidden;
-    }
+  h1 { font-size: 36px; font-weight: bold; }
 
-    .wave {
-      width: 200%;
-      height: 100px;
-      background: none;
-      border: 3px solid #4e6bff;
-      border-radius: 50%;
-      animation: waveMove 4s infinite linear;
-    }
+  .wave-box {
+    width: 90%;
+    margin: 30px auto;
+    height: 200px;
+    border-radius: 20px;
+    background: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0px 4px 18px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
 
-    @keyframes waveMove {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
+  #waveCanvas {
+    width: 100%;
+    height: 200px;
+  }
 
-    button {
-      background: #4e6bff;
-      color: white;
-      border: none;
-      padding: 14px 24px;
-      margin-top: 24px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 18px;
-    }
+  button {
+    background: #4e6bff;
+    color: white;
+    border: none;
+    padding: 14px 24px;
+    margin-top: 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+  }
 
-    .prediction-boxes {
-      display: flex;
-      justify-content: center;
-      gap: 40px;
-      margin-top: 50px;
-    }
+  .prediction-boxes {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 50px;
+  }
 
-    .prediction-card {
-      background: white;
-      padding: 24px;
-      border-radius: 12px;
-      width: 260px;
-      box-shadow: 0px 4px 16px rgba(0,0,0,0.1);
-    }
+  .prediction-card {
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    width: 260px;
+    box-shadow: 0px 4px 16px rgba(0,0,0,0.1);
+  }
 
-    .prediction-card p {
-      font-size: 24px;
-      font-weight: bold;
-      color: #4e6bff;
-    }
-  </style>
+  .prediction-card p {
+    font-size: 24px;
+    font-weight: bold;
+    color: #4e6bff;
+  }
 
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0"></script>
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0"></script>
+
 </head>
-
 <body>
-  <h1>Neuralink-Lite Brainwave Decoder</h1>
-  <p>Your thoughts, decoded with AI. Movement + Cognitive State in real time.</p>
 
-  <div class="wave-box">
-    <div class="wave"></div>
+<h1>Neuralink-Lite Brainwave Decoder</h1>
+<p>Your thoughts, decoded with AI. Movement + Cognitive State in real time.</p>
+
+<div class="wave-box">
+  <canvas id="waveCanvas"></canvas>
+</div>
+
+<button onclick="predictBrainState()">Predict Brain State</button>
+
+<div class="prediction-boxes">
+  <div class="prediction-card">
+    <h3>Movement Prediction</h3>
+    <p id="movePred">--</p>
   </div>
-
-  <button onclick="predictBrainState()">Predict Brain State</button>
-
-  <div class="prediction-boxes">
-    <div class="prediction-card">
-      <h3>Movement Prediction</h3>
-      <p id="movePred">--</p>
-    </div>
-    <div class="prediction-card">
-      <h3>Thought Prediction</h3>
-      <p id="thoughtPred">--</p>
-    </div>
+  <div class="prediction-card">
+    <h3>Thought Prediction</h3>
+    <p id="thoughtPred">--</p>
   </div>
+</div>
 
-  <script>
-    let movementModel, thoughtModel;
+<script>
+let movementModel, thoughtModel;
 
-    async function loadModels() {
-      movementModel = await tf.loadLayersModel("./movement_model_tfjs/model.json");
-      thoughtModel = await tf.loadLayersModel("./thought_model_tfjs/model.json");
-      console.log("✅ Models Loaded");
-    }
-    loadModels();
+async function loadModels() {
+  movementModel = await tf.loadLayersModel("./movement_model_tfjs/model.json");
+  thoughtModel = await tf.loadLayersModel("./thought_model_tfjs/model.json");
+  console.log("✅ Models Loaded");
+}
 
-    function fakeEEG() {
-      return tf.tensor2d([[Math.random(), Math.random(), Math.random(), Math.random(), Math.random(), Math.random(), Math.random(), Math.random()]]);
-    }
+loadModels();
 
-    async function predictBrainState() {
-      if (!movementModel || !thoughtModel) return;
-      let eeg = fakeEEG();
+function getEEG() {
+  let arr = [];
+  for (let i = 0; i < 22; i++) arr.push(Math.random());
+  return tf.tensor2d([arr]);
+}
 
-      let moveOut = movementModel.predict(eeg).argMax(-1).dataSync()[0];
-      let thoughtOut = thoughtModel.predict(eeg).argMax(-1).dataSync()[0];
+async function predictBrainState() {
+  if (!movementModel || !thoughtModel) return;
 
-      document.getElementById("movePred").innerText = ["Left", "Right", "Foot", "Tongue"][moveOut] || "--";
-      document.getElementById("thoughtPred").innerText = thoughtOut === 1 ? "Eyes Closed" : "Eyes Open";
-    }
-  </script>
+  const eeg = getEEG();
+
+  // Movement model: binary - sigmoid output (0–1)
+  let moveProb = movementModel.predict(eeg).dataSync()[0];
+  let moveLabel = moveProb > 0.5 ? "Movement" : "No Movement";
+
+  // Thought model: binary 0 = Eyes Open, 1 = Eyes Closed
+  let thoughtOut = thoughtModel.predict(eeg).argMax(-1).dataSync()[0];
+  let thoughtLabel = thoughtOut === 1 ? "Eyes Closed" : "Eyes Open";
+
+  document.getElementById("movePred").innerText = moveLabel;
+  document.getElementById("thoughtPred").innerText = thoughtLabel;
+}
+
+// Wave animation
+const canvas = document.getElementById("waveCanvas");
+const ctx = canvas.getContext("2d");
+let t = 0;
+
+function animateWave() {
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#4e6bff";
+
+  for (let x = 0; x < canvas.width; x++) {
+    let y = canvas.height / 2 + Math.sin((x + t) * 0.02) * 30;
+    ctx.lineTo(x, y);
+  }
+
+  ctx.stroke();
+  t += 2;
+  requestAnimationFrame(animateWave);
+}
+
+animateWave();
+</script>
 
 </body>
 </html>
+
