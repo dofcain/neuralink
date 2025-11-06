@@ -1,156 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Neuralink-Lite Brainwave Decoder</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neuralink-Lite Brainwave Decoder</title>
 
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f8faff;
-    text-align: center;
-    padding: 40px;
-  }
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;background:#f8faff;text-align:center;padding:40px}
+    h1{font-size:36px;font-weight:700;margin:0 0 6px}
+    p.sub{color:#555;margin:0 0 24px}
+    .wave-box{width:90%;max-width:1100px;margin:28px auto;height:200px;border-radius:20px;background:#fff;
+      display:flex;justify-content:center;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.12);overflow:hidden}
+    #waveCanvas{width:100%;height:200px}
+    button{background:#4e6bff;color:#fff;border:0;padding:14px 24px;margin-top:22px;border-radius:10px;cursor:pointer;font-size:18px}
+    .prediction-boxes{display:flex;flex-wrap:wrap;justify-content:center;gap:32px;margin-top:40px}
+    .prediction-card{background:#fff;padding:24px;border-radius:14px;width:280px;box-shadow:0 8px 24px rgba(0,0,0,.10)}
+    .prediction-card h3{margin:0 0 8px}
+    .prediction-card p{font-size:24px;font-weight:700;color:#4e6bff;margin:0}
+    .small{font-size:12px;color:#777;margin-top:8px}
+  </style>
 
-  h1 { font-size: 36px; font-weight: bold; }
-
-  .wave-box {
-    width: 90%;
-    margin: 30px auto;
-    height: 200px;
-    border-radius: 20px;
-    background: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0px 4px 18px rgba(0,0,0,0.12);
-    overflow: hidden;
-  }
-
-  #waveCanvas {
-    width: 100%;
-    height: 200px;
-  }
-
-  button {
-    background: #4e6bff;
-    color: white;
-    border: none;
-    padding: 14px 24px;
-    margin-top: 24px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 18px;
-  }
-
-  .prediction-boxes {
-    display: flex;
-    justify-content: center;
-    gap: 40px;
-    margin-top: 50px;
-  }
-
-  .prediction-card {
-    background: white;
-    padding: 24px;
-    border-radius: 12px;
-    width: 260px;
-    box-shadow: 0px 4px 16px rgba(0,0,0,0.1);
-  }
-
-  .prediction-card p {
-    font-size: 24px;
-    font-weight: bold;
-    color: #4e6bff;
-  }
-
-</style>
-
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0"></script>
-
+  <!-- TensorFlow.js (match converter 4.22.0) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 </head>
 <body>
+  <h1>Neuralink-Lite Brainwave Decoder</h1>
+  <p class="sub">Your thoughts, decoded with AI. Movement + Cognitive State in real time.</p>
 
-<h1>Neuralink-Lite Brainwave Decoder</h1>
-<p>Your thoughts, decoded with AI. Movement + Cognitive State in real time.</p>
-
-<div class="wave-box">
-  <canvas id="waveCanvas"></canvas>
-</div>
-
-<button onclick="predictBrainState()">Predict Brain State</button>
-
-<div class="prediction-boxes">
-  <div class="prediction-card">
-    <h3>Movement Prediction</h3>
-    <p id="movePred">--</p>
+  <div class="wave-box">
+    <canvas id="waveCanvas"></canvas>
   </div>
-  <div class="prediction-card">
-    <h3>Thought Prediction</h3>
-    <p id="thoughtPred">--</p>
+
+  <button onclick="predictBrainState()">Predict Brain State</button>
+
+  <div class="prediction-boxes">
+    <div class="prediction-card">
+      <h3>Movement Prediction</h3>
+      <p id="movePred">--</p>
+      <div class="small" id="moveProb"></div>
+    </div>
+
+    <div class="prediction-card">
+      <h3>Thought Prediction</h3>
+      <p id="thoughtPred">--</p>
+      <div class="small" id="thoughtProb"></div>
+    </div>
   </div>
-</div>
 
-<script>
-let movementModel, thoughtModel;
+  <script>
+    // ---- MODEL LOADING (absolute URLs so paths never break) ----
+    const MOVEMENT_URL = "https://raw.githubusercontent.com/dofcain/neuralink/main/movement_model_tfjs/model.json";
+    const THOUGHT_URL  = "https://raw.githubusercontent.com/dofcain/neuralink/main/thought_model_tfjs/model.json";
 
-async function loadModels() {
-  movementModel = await tf.loadLayersModel("./movement_model_tfjs/model.json");
-  thoughtModel = await tf.loadLayersModel("./thought_model_tfjs/model.json");
-  console.log("✅ Models Loaded");
-}
+    let movementModel, thoughtModel;
 
-loadModels();
+    async function loadModels() {
+      try {
+        movementModel = await tf.loadLayersModel(MOVEMENT_URL);
+        thoughtModel  = await tf.loadLayersModel(THOUGHT_URL);
+        console.log("✅ Models loaded");
+      } catch (e) {
+        console.error("Model load error:", e);
+        alert("Couldn't load models. Check your internet and try again.");
+      }
+    }
+    loadModels();
 
-function getEEG() {
-  let arr = [];
-  for (let i = 0; i < 22; i++) arr.push(Math.random());
-  return tf.tensor2d([arr]);
-}
+    // ---- INPUT SHAPE: 22 features (matches your movement model) ----
+    function getEEGSample() {
+      const arr = [];
+      for (let i = 0; i < 22; i++) arr.push(Math.random());
+      return tf.tensor2d([arr]);       // shape [1, 22]
+    }
 
-async function predictBrainState() {
-  if (!movementModel || !thoughtModel) return;
+    // ---- SAFE PRED INTERPRETERS ----
+    function asBinaryLabelFromSigmoid(tensor, positiveLabel, negativeLabel, probOutEl) {
+      const val = tensor.dataSync()[0];               // [p]
+      if (probOutEl) probOutEl.textContent = `p=${val.toFixed(3)}`;
+      return val > 0.5 ? positiveLabel : negativeLabel;
+    }
 
-  const eeg = getEEG();
+    function asArgMaxLabel(tensor, labels, probOutEl) {
+      const data = tensor.dataSync();                 // [p1, p2, ...]
+      let maxIdx = 0, max = -Infinity;
+      for (let i = 0; i < data.length; i++) if (data[i] > max) { max = data[i]; maxIdx = i; }
+      if (probOutEl) probOutEl.textContent = `scores=[${Array.from(data).map(x=>x.toFixed(2)).join(", ")}]`;
+      return labels[maxIdx] ?? "Unknown";
+    }
 
-  // Movement model: binary - sigmoid output (0–1)
-  let moveProb = movementModel.predict(eeg).dataSync()[0];
-  let moveLabel = moveProb > 0.5 ? "Movement" : "No Movement";
+    // ---- MAIN PREDICT ----
+    async function predictBrainState() {
+      try {
+        if (!movementModel || !thoughtModel) {
+          alert("Models are loading… give it a second and try again.");
+          return;
+        }
 
-  // Thought model: binary 0 = Eyes Open, 1 = Eyes Closed
-  let thoughtOut = thoughtModel.predict(eeg).argMax(-1).dataSync()[0];
-  let thoughtLabel = thoughtOut === 1 ? "Eyes Closed" : "Eyes Open";
+        const eeg = getEEGSample();
 
-  document.getElementById("movePred").innerText = moveLabel;
-  document.getElementById("thoughtPred").innerText = thoughtLabel;
-}
+        // Movement model: your JSON shows Dense(1, activation='sigmoid') => binary
+        const moveOut = movementModel.predict(eeg);
+        const moveLabel = asBinaryLabelFromSigmoid(moveOut, "Movement", "No Movement", document.getElementById("moveProb"));
+        document.getElementById("movePred").textContent = moveLabel;
 
-// Wave animation
-const canvas = document.getElementById("waveCanvas");
-const ctx = canvas.getContext("2d");
-let t = 0;
+        // Thought model: handle both cases (sigmoid OR softmax)
+        const thoughtOut = thoughtModel.predict(eeg);
+        const size = thoughtOut.size;
+        let thoughtLabel;
+        if (size === 1) {
+          // Binary (e.g., eye open/closed)
+          thoughtLabel = asBinaryLabelFromSigmoid(thoughtOut, "Eyes Closed", "Eyes Open", document.getElementById("thoughtProb"));
+        } else {
+          // Multiclass – change labels if needed
+          thoughtLabel = asArgMaxLabel(thoughtOut, ["Eyes Open", "Eyes Closed"], document.getElementById("thoughtProb"));
+        }
+        document.getElementById("thoughtPred").textContent = thoughtLabel;
 
-function animateWave() {
-  canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = "#4e6bff";
+        // Clean up
+        eeg.dispose(); moveOut.dispose(); thoughtOut.dispose();
+      } catch (err) {
+        console.error(err);
+        alert("Prediction error (check Console). We’ll fix it.");
+      }
+    }
 
-  for (let x = 0; x < canvas.width; x++) {
-    let y = canvas.height / 2 + Math.sin((x + t) * 0.02) * 30;
-    ctx.lineTo(x, y);
-  }
-
-  ctx.stroke();
-  t += 2;
-  requestAnimationFrame(animateWave);
-}
-
-animateWave();
-</script>
-
+    // ---- WAVE ANIMATION ----
+    const canvas = document.getElementById("waveCanvas");
+    const ctx = canvas.getContext("2d");
+    let t = 0;
+    function animateWave() {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#4e6bff";
+      for (let x = 0; x < canvas.width; x++) {
+        const y = canvas.height/2 + Math.sin((x + t) * 0.02) * 30;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      t += 2;
+      requestAnimationFrame(animateWave);
+    }
+    animateWave();
+  </script>
 </body>
 </html>
