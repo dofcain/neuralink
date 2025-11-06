@@ -172,24 +172,17 @@
     return arr;
   }
 
-  async function predictBrainState() {
-    if (!movementModel || !thoughtModel) {
-      alert("Models are loading… please wait 2 seconds.");
-      return;
-    }
+ async function predictBrainState() {
+  // Random demo predictions
+  let movements = ["Left", "Right", "Foot", "Tongue"];
+  let thoughts = ["Rest", "Math", "Focus", "Meditate"];
 
-    let eeg = getRandomEEG();
-    let tensor = tf.tensor([eeg]);
+  document.getElementById("movePred").innerText =
+    movements[Math.floor(Math.random() * movements.length)];
 
-    let movePred = movementModel.predict(tensor).dataSync()[0];
-    let thoughtPred = thoughtModel.predict(tensor).dataSync()[0];
-
-    document.getElementById("movePred").innerText = 
-      movePred > 0.5 ? "Right" : "Left";
-
-    document.getElementById("thoughtPred").innerText = 
-      thoughtPred > 0.5 ? "Math" : "Rest";
-  }
+  document.getElementById("thoughtPred").innerText =
+    thoughts[Math.floor(Math.random() * thoughts.length)];
+}
 
   // Wave animation
   const c = document.getElementById("wave");
