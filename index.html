@@ -147,42 +147,76 @@
     </div>
   </div>
 
-  <script>
-    // Fake demo predictions (replace with real model inference later)
-    function predictBrainState() {
-      const moves = ["Left", "Right"];
-      const thoughts = ["Rest", "Math"];
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script>
+  let movementModel;
+  let thoughtModel;
 
-      document.getElementById("movePred").innerText = moves[Math.floor(Math.random() * moves.length)];
-      document.getElementById("thoughtPred").innerText = thoughts[Math.floor(Math.random() * thoughts.length)];
+  async function loadModels() {
+    movementModel = await tf.loadLayersModel(
+      "https://raw.githubusercontent.com/dofcain/neuralite/main/movement_model_tfjs/model.json"
+    );
+
+    thoughtModel = await tf.loadLayersModel(
+      "https://raw.githubusercontent.com/dofcain/neuralite/main/thought_model_tfjs/model.json"
+    );
+  }
+
+  loadModels();
+
+  function getRandomEEG() {
+    let arr = [];
+    for (let i = 0; i < 14; i++) {
+      arr.push(Math.random() * 1); 
+    }
+    return arr;
+  }
+
+  async function predictBrainState() {
+    if (!movementModel || !thoughtModel) {
+      alert("Models are loading… please wait 2 seconds.");
+      return;
     }
 
-    // Wave animation
-    const c = document.getElementById("wave");
-    const ctx = c.getContext("2d");
-    let t = 0;
+    let eeg = getRandomEEG();
+    let tensor = tf.tensor([eeg]);
 
-    function drawWave() {
-      c.width = c.offsetWidth;
-      c.height = c.offsetHeight;
+    let movePred = movementModel.predict(tensor).dataSync()[0];
+    let thoughtPred = thoughtModel.predict(tensor).dataSync()[0];
 
-      ctx.clearRect(0, 0, c.width, c.height);
-      ctx.beginPath();
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "#3a4dff";
+    document.getElementById("movePred").innerText = 
+      movePred > 0.5 ? "Right" : "Left";
 
-      for (let x = 0; x < c.width; x++) {
-        let y = c.height/2 + Math.sin((x + t) * 0.02) * 30;
-        ctx.lineTo(x, y);
-      }
+    document.getElementById("thoughtPred").innerText = 
+      thoughtPred > 0.5 ? "Math" : "Rest";
+  }
 
-      ctx.stroke();
-      t += 2;
-      requestAnimationFrame(drawWave);
+  // Wave animation
+  const c = document.getElementById("wave");
+  const ctx = c.getContext("2d");
+  let t = 0;
+
+  function drawWave() {
+    c.width = c.offsetWidth;
+    c.height = c.offsetHeight;
+
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.beginPath();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#3a4dff";
+
+    for (let x = 0; x < c.width; x++) {
+      let y = c.height / 2 + Math.sin((x + t) * 0.02) * 30;
+      ctx.lineTo(x, y);
     }
 
-    drawWave();
-  </script>
+    ctx.stroke();
+    t += 2;
+    requestAnimationFrame(drawWave);
+  }
+
+  drawWave();
+</script>
 
 </body>
 </html>
